@@ -78,28 +78,3 @@ class VanillaDQN(nn.Module):
         out = out.view(batch, -1)       # flatten
         q_values = self.fc(out)         # (B, num_actions)
         return q_values
-
-
-# ============================================================
-#   Example usage
-# ============================================================
-if __name__ == "__main__":
-    # Example Tetris state
-    H, W = 20, 10
-    board = torch.zeros((H, W))
-    board[-1] = 1  # bottom row filled
-
-    current_piece = 0   # I piece
-    held_piece = 3      # S piece
-
-    # Encode the state
-    state = encode_tetris_state(board, current_piece, held_piece)
-    state = state.unsqueeze(0)   # batch dimension -> (1, 15, 20, 10)
-
-    # Define action space (example: 200 discrete actions)
-    num_actions = 200
-    model = VanillaDQN(num_actions=num_actions)
-
-    # Forward pass
-    q_values = model(state)
-    print("Q-values shape:", q_values.shape)  # (1, 200)
