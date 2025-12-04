@@ -129,7 +129,7 @@ def main():
         "epsilon_final": 0.02,
         "epsilon_decay_steps": 200000,
         "grad_clip": 10.0,
-        "save_path": "trained_dqn.pth",
+        "save_path": "vanilla_dqn.pth",
         "log_interval": 10,
     }
     
