@@ -116,18 +116,18 @@ def main():
     HYPERPARAMS = {
         "seed": 42,
         "device": "cuda" if torch.cuda.is_available() else "cpu",
-        "num_episodes": 2000,
+        "num_episodes": 60000,
         "max_steps_per_episode": 1000,
-        "batch_size": 64,
+        "batch_size": 128,
         "replay_capacity": 100000,
         "gamma": 0.99,
-        "lr": 1e-4,
-        "target_update_freq": 1000,   # in gradient steps
-        "start_training_after": 1000, # steps
-        "train_freq": 4,              # train every N steps
+        "lr": 1e-5,
+        "target_update_freq": 10000,   # in gradient steps
+        "start_training_after": 20000, # steps
+        "train_freq": 8,              # train every N steps
         "epsilon_start": 1.0,
         "epsilon_final": 0.02,
-        "epsilon_decay_steps": 200000,
+        "epsilon_decay_steps": 1000000, #made it 1 mil bc tetris needs longer exploration
         "grad_clip": 10.0,
         "save_path": "vanilla_dqn.pth",
         "log_interval": 10,
