@@ -1,16 +1,15 @@
 """
-Train multiple agents (including the continuous actor/critic) on the same Tetris environment.
+Train multiple agents on the same Tetris environment (no prioritized replay).
+Trains and saves:
+ - VanillaDQN (Models/vanilla_dqn.VanillaDQN)
+ - DuelingDQNAgent (Models/dueling_dqn.DuelingDQNAgent)
+ - DoubleDQNAgent (Models/double_dqn.DoubleDQNAgent)
+ - MCTPNet (Models/mctp_net.MCTPNet)
+ - Continuous actor/critic (Models/continuous_dqn.TetrisContinuousActor/Critic)
 
-Assumptions:
+Assumes:
  - tetris_env_wrapper.py defines TetrisBattleEnvWrapper
- - Model files are under Models/ with the expected class names:
-     Models/vanilla_dqn.py      -> VanillaDQN
-     Models/dueling_dqn.py     -> DuelingDQNAgent
-     Models/prioritized_dqn.py -> PrioritizedTetrisDQN, PrioritizedReplayBuffer, per_dqn_train_step
-     Models/double_dqn.py      -> DoubleDQNAgent
-     Models/mctp_net.py        -> MCTPNet
-     Models/continuous_dqn.py  -> TetrisContinuousActor, TetrisContinuousCritic
-Adjust file/module names if your layout differs.
+ - Model files exist under Models/ with the expected class names
 """
 
 import os
@@ -25,7 +24,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 # -------------------------
-# Imports: models and env wrapper
+# Imports: models and env wrapper (no prioritized model)
 # -------------------------
 try:
     from Models.vanilla_dqn import VanillaDQN
@@ -36,11 +35,6 @@ try:
     from Models.dueling_dqn import DuelingDQNAgent
 except Exception as e:
     raise ImportError("Could not import DuelingDQNAgent from Models.dueling_dqn") from e
-
-try:
-    from Models.prioritized_dqn import PrioritizedReplayBuffer, PrioritizedTetrisDQN, per_dqn_train_step
-except Exception as e:
-    raise ImportError("Could not import prioritized model components from Models.prioritized_dqn") from e
 
 try:
     from Models.double_dqn import DoubleDQNAgent
@@ -135,31 +129,22 @@ def soft_update(target, source, tau):
         t.data.copy_(t.data * (1.0 - tau) + s.data * tau)
 
 
-def to_tensor(x, device):
-    if isinstance(x, torch.Tensor):
-        return x.to(device)
-    return torch.tensor(x, dtype=torch.float32, device=device)
-
-
 # -------------------------
 # Hyperparameters
 # -------------------------
 H = {
     "seed": 42,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
-    "vanilla_episodes": 60000,
-    "dueling_episodes": 60000,
-    "prioritized_episodes": 60000,
-    "double_episodes": 60000,
-    "mctp_episodes": 60000,
-    "continuous_episodes": 60000,
+    "vanilla_episodes": 300,
+    "dueling_episodes": 300,
+    "double_episodes": 300,
+    "mctp_episodes": 300,
+    "continuous_episodes": 300,
     "max_steps_per_episode": 1000,
     "batch_size": 64,
     "replay_capacity": 100000,
-    "per_capacity": 100000,
     "gamma": 0.99,
     "lr_vanilla": 1e-4,
-    "lr_prioritized": 1e-4,
     "lr_mctp": 3e-4,
     "lr_cont_actor": 1e-4,
     "lr_cont_critic": 1e-4,
@@ -172,7 +157,6 @@ H = {
     "grad_clip": 10.0,
     "vanilla_save": "completed_models/vanilla_trained.pth",
     "dueling_save": "completed_models/dueling_trained.pth",
-    "prioritized_save": "completed_models/prioritized_trained.pth",
     "double_save": "completed_models/double_trained.pth",
     "mctp_save": "completed_models/mctp_trained.pth",
     "continuous_actor_save": "completed_models/continuous_actor.pth",
@@ -199,10 +183,8 @@ env = TetrisBattleEnvWrapper(device=str(device), debug=False)
 if hasattr(env.action_space, "shape") and env.action_space.shape is not None:
     action_dim = int(np.prod(env.action_space.shape))
 else:
-    # fallback: discrete action count
     action_dim = env.action_space.n if hasattr(env.action_space, "n") else int(env.action_space)
 
-# Determine number of discrete actions for DQN agents
 num_actions = env.action_space.n if hasattr(env.action_space, "n") else int(env.action_space)
 
 # -------------------------
@@ -219,16 +201,6 @@ vanilla_replay = ReplayBuffer(H["replay_capacity"])
 # Dueling DQN agent
 # -------------------------
 dueling_agent = DuelingDQNAgent(num_actions=num_actions, device=device, lr=1e-4)
-
-# -------------------------
-# Prioritized DQN setup
-# -------------------------
-prioritized_net = PrioritizedTetrisDQN(num_actions=num_actions, in_channels=15).to(device)
-prioritized_target = PrioritizedTetrisDQN(num_actions=num_actions, in_channels=15).to(device)
-prioritized_target.load_state_dict(prioritized_net.state_dict())
-prioritized_target.eval()
-prioritized_opt = optim.Adam(prioritized_net.parameters(), lr=H["lr_prioritized"])
-per_buffer = PrioritizedReplayBuffer(capacity=H["per_capacity"])
 
 # -------------------------
 # Double DQN agent
@@ -263,7 +235,6 @@ total_steps = 0
 vanilla_grad_steps = 0
 vanilla_episode_rewards = []
 dueling_episode_rewards = []
-prioritized_episode_rewards = []
 double_episode_rewards = []
 mctp_episode_rewards = []
 continuous_episode_rewards = []
@@ -282,7 +253,7 @@ def get_epsilon(step):
 # -------------------------
 print("Starting VanillaDQN training...")
 for ep in range(1, H["vanilla_episodes"] + 1):
-    state = env.reset()  # (C, H, W) on device
+    state = env.reset()
     ep_reward = 0.0
 
     for step in range(H["max_steps_per_episode"]):
@@ -292,13 +263,11 @@ for ep in range(1, H["vanilla_episodes"] + 1):
         next_state, reward, done, info = env.step(action)
         ep_reward += float(reward)
 
-        # store on CPU to avoid GPU memory growth
         vanilla_replay.push(state.cpu(), action, reward, next_state.cpu(), done)
 
         state = next_state
         total_steps += 1
 
-        # Training step
         if len(vanilla_replay) >= H["batch_size"] and total_steps > H["start_training_after"]:
             if total_steps % H["train_freq"] == 0:
                 batch = vanilla_replay.sample(H["batch_size"])
@@ -342,7 +311,7 @@ for ep in range(1, H["dueling_episodes"] + 1):
         ep_reward += float(reward)
 
         dueling_agent.push(state.cpu(), action, reward, next_state.cpu(), done)
-        _ = dueling_agent.train_step()  # agent handles internal checks
+        _ = dueling_agent.train_step()
 
         state = next_state
         if done:
@@ -360,71 +329,6 @@ for ep in range(1, H["dueling_episodes"] + 1):
 
 torch.save(dueling_agent.online.state_dict(), H["dueling_save"])
 print(f"Dueling model saved to {H['dueling_save']}")
-
-# -------------------------
-# Train Prioritized PER DQN
-# -------------------------
-print("Starting Prioritized PER DQN training...")
-per_total_steps = 0
-per_grad_steps = 0
-
-for ep in range(1, H["prioritized_episodes"] + 1):
-    state = env.reset()
-    ep_reward = 0.0
-
-    for step in range(H["max_steps_per_episode"]):
-        # epsilon-greedy for prioritized agent (simple schedule)
-        eps = get_epsilon(per_total_steps)
-        if random.random() < eps:
-            action = random.randrange(num_actions)
-        else:
-            prioritized_net.eval()
-            with torch.no_grad():
-                x = state.unsqueeze(0).to(device) if state.dim() == 3 else state.to(device)
-                qv = prioritized_net(x).cpu().squeeze(0).numpy()
-                action = int(np.argmax(qv))
-            prioritized_net.train()
-
-        next_state, reward, done, info = env.step(action)
-        ep_reward += float(reward)
-
-        # push into PER buffer (store CPU tensors)
-        per_buffer.push(state.cpu(), action, reward, next_state.cpu(), done)
-
-        state = next_state
-        per_total_steps += 1
-
-        # Train step when buffer has enough samples
-        if len(per_buffer.buffer) >= H["batch_size"]:
-            loss_val = per_dqn_train_step(
-                online_net=prioritized_net.to(device),
-                target_net=prioritized_target.to(device),
-                buffer=per_buffer,
-                optimizer=prioritized_opt,
-                batch_size=H["batch_size"],
-                gamma=H["gamma"],
-            )
-            per_grad_steps += 1
-
-            # Hard update target periodically
-            if per_grad_steps % H["target_update_freq"] == 0:
-                prioritized_target.load_state_dict(prioritized_net.state_dict())
-
-        if done:
-            break
-
-    prioritized_episode_rewards.append(ep_reward)
-
-    if ep % H["log_interval"] == 0:
-        avg_reward = np.mean(prioritized_episode_rewards[-H["log_interval"] :])
-        elapsed = time.time() - start_time
-        print(f"[Prioritized] Ep {ep:4d} | AvgR(last {H['log_interval']}): {avg_reward:.3f} | Eps: {eps:.3f} | Time: {elapsed:.1f}s")
-
-    if ep % 100 == 0:
-        torch.save(prioritized_net.state_dict(), f"checkpoints/checkpoint_prioritized_ep{ep}.pth")
-
-torch.save(prioritized_net.state_dict(), H["prioritized_save"])
-print(f"Prioritized model saved to {H['prioritized_save']}")
 
 # -------------------------
 # Train DoubleDQNAgent
@@ -540,7 +444,6 @@ for ep in range(1, H["continuous_episodes"] + 1):
     ep_reward = 0.0
 
     for step in range(H["max_steps_per_episode"]):
-        # select action: actor + exploration noise
         actor.eval()
         with torch.no_grad():
             x = state.unsqueeze(0).to(device) if state.dim() == 3 else state.to(device)
@@ -548,13 +451,10 @@ for ep in range(1, H["continuous_episodes"] + 1):
             action = mu.cpu().squeeze(0).numpy()
         actor.train()
 
-        # add gaussian noise for exploration
         noise = np.random.normal(scale=H["ddpg_noise_std"], size=action.shape)
         action_noisy = action + noise
-        # convert to tensor for env.step; if env expects discrete index, cast to int
+
         if hasattr(env.action_space, "n"):
-            # discrete environment: map continuous to discrete by argmax-like mapping
-            # simple mapping: round and clip to [0, n-1]
             a_idx = int(np.clip(int(np.round(action_noisy[0])), 0, env.action_space.n - 1))
             chosen_action = a_idx
             action_tensor = torch.tensor([a_idx], dtype=torch.float32)
@@ -565,22 +465,19 @@ for ep in range(1, H["continuous_episodes"] + 1):
         next_state, reward, done, info = env.step(chosen_action)
         ep_reward += float(reward)
 
-        # store transition (store action tensor on CPU)
         cont_replay.push(state.cpu(), action_tensor.cpu(), reward, next_state.cpu(), done)
 
         state = next_state
         cont_total_steps += 1
 
-        # training step
         if len(cont_replay) >= H["batch_size"]:
             batch = cont_replay.sample(H["batch_size"])
-            states = torch.stack(batch.state).to(device)            # (B, C, H, W)
-            actions = torch.stack(batch.action).to(device).float()  # (B, action_dim) or (B,1)
+            states = torch.stack(batch.state).to(device)
+            actions = torch.stack(batch.action).to(device).float()
             rewards = torch.tensor(batch.reward, dtype=torch.float32, device=device).unsqueeze(1)
             next_states = torch.stack(batch.next_state).to(device)
             dones = torch.tensor(batch.done, dtype=torch.float32, device=device).unsqueeze(1)
 
-            # Critic update: MSE between Q and target Q
             with torch.no_grad():
                 next_actions_mu, _ = actor_target(next_states)
                 next_q = critic_target(next_states, next_actions_mu)
@@ -594,7 +491,6 @@ for ep in range(1, H["continuous_episodes"] + 1):
             torch.nn.utils.clip_grad_norm_(critic.parameters(), H["grad_clip"])
             critic_opt.step()
 
-            # Actor update: maximize Q (equivalently minimize -Q)
             actor_opt.zero_grad()
             mu_pred, _ = actor(states)
             actor_loss = -critic(states, mu_pred).mean()
@@ -602,7 +498,6 @@ for ep in range(1, H["continuous_episodes"] + 1):
             torch.nn.utils.clip_grad_norm_(actor.parameters(), H["grad_clip"])
             actor_opt.step()
 
-            # Soft update targets
             soft_update(actor_target, actor, H["ddpg_tau"])
             soft_update(critic_target, critic, H["ddpg_tau"])
 
