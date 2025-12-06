@@ -38,11 +38,7 @@ except Exception as e:
     raise ImportError("Could not import DuelingDQNAgent from Models.dueling_dqn") from e
 
 try:
-    from Models.prioritized_dqn import (
-        PrioritizedTetrisDQN,
-        PrioritizedReplayBuffer,
-        per_dqn_train_step,
-    )
+    from Models.prioritized_dqn import PrioritizedReplayBuffer, PrioritizedTetrisDQN, per_dqn_train_step
 except Exception as e:
     raise ImportError("Could not import prioritized model components from Models.prioritized_dqn") from e
 
