@@ -122,12 +122,12 @@ def main():
         "replay_capacity": 100000,
         "gamma": 0.99,
         "lr": 1e-5,
-        "target_update_freq": 10000,   # in gradient steps
-        "start_training_after": 20000, # steps
-        "train_freq": 8,              # train every N steps
+        "target_update_freq": 1000,   # in gradient steps
+        "start_training_after": 1000, # steps
+        "train_freq": 4,              # train every N steps
         "epsilon_start": 1.0,
         "epsilon_final": 0.02,
-        "epsilon_decay_steps": 1000000, #made it 1 mil bc tetris needs longer exploration
+        "epsilon_decay_steps": 200000, #made it 1 mil bc tetris needs longer exploration
         "grad_clip": 10.0,
         "save_path": "vanilla_dqn.pth",
         "log_interval": 10,
