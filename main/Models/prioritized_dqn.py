@@ -39,7 +39,7 @@ def encode_tetris_state(board,
 # ============================================================
 #   DQN MODEL (vanilla CNN-based)
 # ============================================================
-class TetrisDQN(nn.Module):
+class PrioritizedTetrisDQN(nn.Module):
     def __init__(self, num_actions, in_channels=15):
         super().__init__()
 

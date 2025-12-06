@@ -94,7 +94,7 @@ class DuelingTetrisDQN(nn.Module):
 # ============================================================
 #   Replay Buffer
 # ============================================================
-class ReplayBuffer:
+class DuelingReplayBuffer:
     def __init__(self, capacity=100_000):
         self.buffer = deque(maxlen=capacity)
 
@@ -142,7 +142,7 @@ class DuelingDQNAgent:
         self.target.load_state_dict(self.online.state_dict())
 
         self.opt = torch.optim.Adam(self.online.parameters(), lr=lr)
-        self.replay = ReplayBuffer(replay_size)
+        self.replay = DuelingReplayBuffer(replay_size)
 
         # Exploration
         self.eps = 1.0

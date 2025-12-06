@@ -73,7 +73,7 @@ class TetrisDQN(nn.Module):
 # ============================================================
 #   REPLAY BUFFER
 # ============================================================
-class ReplayBuffer:
+class DoubleReplayBuffer:
     def __init__(self, capacity=100_000):
         self.buffer = deque(maxlen=capacity)
 
@@ -121,7 +121,7 @@ class DoubleDQNAgent:
         self.target.load_state_dict(self.online.state_dict())
 
         self.opt = torch.optim.Adam(self.online.parameters(), lr=lr)
-        self.replay = ReplayBuffer(replay_size)
+        self.replay = DoubleReplayBuffer(replay_size)
 
         self.eps = 1.0   # For epsilon-greedy
         self.eps_min = 0.05
