@@ -154,9 +154,9 @@ class TetrisBattleEnvWrapper:
         self.prev_cleared = total_cleared
         self.prev_sent = total_sent
 
-        highest_row = self.get_highest_block_height()
-        normalized_height = 1 - (highest_row / self.board_height)
-        HEIGHT_PENALTY = 0.5
+        """highest_row = self.get_highest_block_height()
+        normalized_height = 1 - (highest_row / self.board_height)"""
+        HEIGHT_REWARD = 0.005
 
         # Reward weights
         ATTACK_W = 1.0  # reward for sending lines (attack)
@@ -167,7 +167,7 @@ class TetrisBattleEnvWrapper:
         reward = 0.0
         reward += ATTACK_W * float(delta_sent)
         reward += CLEAR_W * float(delta_cleared)
-        reward -= HEIGHT_PENALTY * normalized_height
+        reward += HEIGHT_REWARD * (1 - self.get_average_height())
 
         # Terminal bonus/penalty if winner info is present
         if done and "winner" in info:
@@ -230,3 +230,23 @@ class TetrisBattleEnvWrapper:
         if len(occupied_rows) == 0:
             return self.board_height  # empty board
         return occupied_rows[0]  # top-most block row
+
+    def get_average_height(self):
+        """Compute average height of blocks on a Tetris board."""
+        tetris = self.env.game_interface.tetris_list[self.player_idx]["tetris"]
+        board = tetris.get_board().T
+
+        H, W = board.shape
+        total_height = 0
+        num_columns = W
+
+        for col in range(W):
+            column_blocks = np.where(board[:, col] > 0)[0]
+            if len(column_blocks) == 0:
+                height = 0
+            else:
+                height = H - column_blocks[0]
+            total_height += height
+
+        avg_height = total_height / num_columns
+        return avg_height / H  # normalize to 0-1
