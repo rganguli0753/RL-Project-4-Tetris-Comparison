@@ -167,7 +167,7 @@ for ep in range(1, H["double_episodes"] + 1):
 
     double_episode_rewards.append(ep_reward)
 
-    if ep % H["log_interval"] == 0:
+    if ep % 10 == 0:
         avg_reward = np.mean(double_episode_rewards[-H["log_interval"] :])
         elapsed = time.time() - start_time
         print(f"[Double] Ep {ep:4d} | AvgR(last {H['log_interval']}): {avg_reward:.3f} | AgentEps: {double_agent.eps:.3f} | Time: {elapsed:.1f}s")

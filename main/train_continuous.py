@@ -236,7 +236,7 @@ for ep in range(1, H["continuous_episodes"] + 1):
 
     continuous_episode_rewards.append(ep_reward)
 
-    if ep % H["log_interval"] == 0:
+    if ep % 10 == 0:
         avg_reward = np.mean(continuous_episode_rewards[-H["log_interval"] :])
         elapsed = time.time() - start_time
         print(f"[Continuous] Ep {ep:4d} | AvgR(last {H['log_interval']}): {avg_reward:.3f} | Time: {elapsed:.1f}s")

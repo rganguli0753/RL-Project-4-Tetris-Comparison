@@ -157,7 +157,7 @@ for ep in range(1, H["dueling_episodes"] + 1):
 
     dueling_episode_rewards.append(ep_reward)
 
-    if ep % H["log_interval"] == 0:
+    if ep % 10 == 0:
         avg_reward = np.mean(dueling_episode_rewards[-H["log_interval"] :])
         elapsed = time.time() - start_time
         print(f"[Dueling] Ep {ep:4d} | AvgR(last {H['log_interval']}): {avg_reward:.3f} | AgentEps: {dueling_agent.eps:.3f} | Time: {elapsed:.1f}s")
