@@ -9,11 +9,9 @@ from collections import deque
 # ============================================================
 #   STATE ENCODER
 # ============================================================
-def encode_tetris_state(board,
-                        current_piece,
-                        held_piece,
-                        board_height=20,
-                        board_width=10):
+def encode_tetris_state(
+    board, current_piece, held_piece, board_height=20, board_width=10
+):
     """
     Returns tensor of shape (15, H, W):
         1 board channel
@@ -47,6 +45,7 @@ class DuelingTetrisDQN(nn.Module):
     Standard dueling architecture:
         Q = V + (A - mean(A))
     """
+
     def __init__(self, num_actions, in_channels=15):
         super().__init__()
 
@@ -54,10 +53,8 @@ class DuelingTetrisDQN(nn.Module):
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels, 64, kernel_size=3, padding=1),
             nn.ReLU(),
-
             nn.Conv2d(64, 128, kernel_size=3, padding=1),
             nn.ReLU(),
-
             nn.Conv2d(128, 128, kernel_size=3, padding=1),
             nn.ReLU(),
         )
@@ -66,16 +63,12 @@ class DuelingTetrisDQN(nn.Module):
 
         # Value stream
         self.value_fc = nn.Sequential(
-            nn.Linear(flattened_dim, 256),
-            nn.ReLU(),
-            nn.Linear(256, 1)
+            nn.Linear(flattened_dim, 256), nn.ReLU(), nn.Linear(256, 1)
         )
 
         # Advantage stream
         self.adv_fc = nn.Sequential(
-            nn.Linear(flattened_dim, 256),
-            nn.ReLU(),
-            nn.Linear(256, num_actions)
+            nn.Linear(flattened_dim, 256), nn.ReLU(), nn.Linear(256, num_actions)
         )
 
     def forward(self, x):
@@ -83,8 +76,8 @@ class DuelingTetrisDQN(nn.Module):
         h = self.conv(x)
         h = h.view(batch, -1)
 
-        V = self.value_fc(h)              # (B, 1)
-        A = self.adv_fc(h)                # (B, num_actions)
+        V = self.value_fc(h)  # (B, 1)
+        A = self.adv_fc(h)  # (B, num_actions)
 
         # Dueling combination
         Q = V + (A - A.mean(dim=1, keepdim=True))
@@ -128,7 +121,7 @@ class DuelingDQNAgent:
         device="cpu",
         replay_size=100000,
         batch_size=64,
-        tau=0.005,       # soft update
+        tau=0.005,  # soft update
     ):
         self.device = device
         self.gamma = gamma
@@ -146,8 +139,8 @@ class DuelingDQNAgent:
 
         # Exploration
         self.eps = 1.0
-        self.eps_min = 0.05
-        self.eps_decay = 0.9995
+        self.eps_min = 0.02
+        self.eps_decay = 0.999995
 
     # ---------------
     #   Action selection

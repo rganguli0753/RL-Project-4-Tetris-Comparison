@@ -9,11 +9,9 @@ from collections import deque
 # ============================================================
 #   STATE ENCODER
 # ============================================================
-def encode_tetris_state(board,
-                        current_piece,
-                        held_piece,
-                        board_height=20,
-                        board_width=10):
+def encode_tetris_state(
+    board, current_piece, held_piece, board_height=20, board_width=10
+):
     """
     board: (H, W) 0/1 occupancy
     Returns tensor (15, H, W):
@@ -49,18 +47,14 @@ class TetrisDQN(nn.Module):
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels, 64, kernel_size=3, padding=1),
             nn.ReLU(),
-
             nn.Conv2d(64, 128, kernel_size=3, padding=1),
             nn.ReLU(),
-
             nn.Conv2d(128, 128, kernel_size=3, padding=1),
             nn.ReLU(),
         )
 
         self.fc = nn.Sequential(
-            nn.Linear(128 * 20 * 10, 512),
-            nn.ReLU(),
-            nn.Linear(512, num_actions)
+            nn.Linear(128 * 20 * 10, 512), nn.ReLU(), nn.Linear(512, num_actions)
         )
 
     def forward(self, x):
@@ -123,9 +117,9 @@ class DoubleDQNAgent:
         self.opt = torch.optim.Adam(self.online.parameters(), lr=lr)
         self.replay = DoubleReplayBuffer(replay_size)
 
-        self.eps = 1.0   # For epsilon-greedy
-        self.eps_min = 0.05
-        self.eps_decay = 0.9995
+        self.eps = 1.0  # For epsilon-greedy
+        self.eps_min = 0.02
+        self.eps_decay = 0.999995
 
     # ----------------------------
     # Epsilon-greedy action
@@ -151,7 +145,9 @@ class DoubleDQNAgent:
         if len(self.replay) < self.batch_size:
             return None
 
-        states, actions, rewards, next_states, dones = self.replay.sample(self.batch_size)
+        states, actions, rewards, next_states, dones = self.replay.sample(
+            self.batch_size
+        )
 
         states = states.to(self.device)
         next_states = next_states.to(self.device)
@@ -185,8 +181,12 @@ class DoubleDQNAgent:
         self.opt.step()
 
         # Soft target update
-        for p_target, p_online in zip(self.target.parameters(), self.online.parameters()):
-            p_target.data.copy_(self.tau * p_online.data + (1 - self.tau) * p_target.data)
+        for p_target, p_online in zip(
+            self.target.parameters(), self.online.parameters()
+        ):
+            p_target.data.copy_(
+                self.tau * p_online.data + (1 - self.tau) * p_target.data
+            )
 
         # Epsilon decay
         self.eps = max(self.eps * self.eps_decay, self.eps_min)
