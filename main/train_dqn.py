@@ -49,17 +49,23 @@ except Exception as e:
 try:
     from Models.continuous_action import TetrisContinuousActor, TetrisContinuousCritic
 except Exception as e:
-    raise ImportError("Could not import TetrisContinuousActor/TetrisContinuousCritic from Models.continuous_dqn") from e
+    raise ImportError(
+        "Could not import TetrisContinuousActor/TetrisContinuousCritic from Models.continuous_dqn"
+    ) from e
 
 try:
     from tetris_env_wrapper import TetrisBattleEnvWrapper
 except Exception as e:
-    raise ImportError("Could not import TetrisBattleEnvWrapper from tetris_env_wrapper.py") from e
+    raise ImportError(
+        "Could not import TetrisBattleEnvWrapper from tetris_env_wrapper.py"
+    ) from e
 
 # -------------------------
 # Simple replay buffer for on-policy/off-policy agents
 # -------------------------
-Transition = namedtuple("Transition", ("state", "action", "reward", "next_state", "done"))
+Transition = namedtuple(
+    "Transition", ("state", "action", "reward", "next_state", "done")
+)
 
 
 class ReplayBuffer:
@@ -84,7 +90,11 @@ class ReplayBuffer:
 def select_action_vanilla(q_net, state, epsilon, device, num_actions, valid_mask=None):
     if random.random() < epsilon:
         if valid_mask is not None:
-            mask = valid_mask.cpu().numpy().astype(bool) if isinstance(valid_mask, torch.Tensor) else np.array(valid_mask).astype(bool)
+            mask = (
+                valid_mask.cpu().numpy().astype(bool)
+                if isinstance(valid_mask, torch.Tensor)
+                else np.array(valid_mask).astype(bool)
+            )
             valid_indices = np.where(mask)[0]
             if len(valid_indices) == 0:
                 return random.randrange(num_actions)
@@ -106,7 +116,9 @@ def select_action_vanilla(q_net, state, epsilon, device, num_actions, valid_mask
 def compute_td_loss_vanilla(batch, q_net, target_net, gamma, device):
     states = torch.stack(batch.state).to(device)
     actions = torch.tensor(batch.action, dtype=torch.long, device=device).unsqueeze(1)
-    rewards = torch.tensor(batch.reward, dtype=torch.float32, device=device).unsqueeze(1)
+    rewards = torch.tensor(batch.reward, dtype=torch.float32, device=device).unsqueeze(
+        1
+    )
     next_states = torch.stack(batch.next_state).to(device)
     dones = torch.tensor(batch.done, dtype=torch.float32, device=device).unsqueeze(1)
 
@@ -140,20 +152,20 @@ H = {
     "double_episodes": 9000,
     "mctp_episodes": 9000,
     "continuous_episodes": 9000,
-    "max_steps_per_episode": 1000,
-    "batch_size": 64,
+    "max_steps_per_episode": 10000,
+    "batch_size": 128,
     "replay_capacity": 100000,
     "gamma": 0.99,
     "lr_vanilla": 1e-4,
     "lr_mctp": 3e-4,
     "lr_cont_actor": 1e-4,
     "lr_cont_critic": 1e-4,
-    "target_update_freq": 1000,
+    "target_update_freq": 32,
     "start_training_after": 1000,
     "train_freq": 4,
     "epsilon_start": 1.0,
     "epsilon_final": 0.02,
-    "epsilon_decay_steps": 200000,
+    "epsilon_decay_steps": 1000000,
     "grad_clip": 10.0,
     "vanilla_save": "completed_models/vanilla_trained.pth",
     "dueling_save": "completed_models/dueling_trained.pth",
@@ -183,9 +195,13 @@ env = TetrisBattleEnvWrapper(device=str(device), debug=False)
 if hasattr(env.action_space, "shape") and env.action_space.shape is not None:
     action_dim = int(np.prod(env.action_space.shape))
 else:
-    action_dim = env.action_space.n if hasattr(env.action_space, "n") else int(env.action_space)
+    action_dim = (
+        env.action_space.n if hasattr(env.action_space, "n") else int(env.action_space)
+    )
 
-num_actions = env.action_space.n if hasattr(env.action_space, "n") else int(env.action_space)
+num_actions = (
+    env.action_space.n if hasattr(env.action_space, "n") else int(env.action_space)
+)
 
 # -------------------------
 # Vanilla DQN setup
@@ -228,7 +244,9 @@ for ep in range(1, H["vanilla_episodes"] + 1):
 
     for step in range(H["max_steps_per_episode"]):
         epsilon = get_epsilon(total_steps)
-        action = select_action_vanilla(vanilla_net, state, epsilon, device, num_actions, valid_mask=None)
+        action = select_action_vanilla(
+            vanilla_net, state, epsilon, device, num_actions, valid_mask=None
+        )
 
         next_state, reward, done, info = env.step(action)
         ep_reward += float(reward)
@@ -238,10 +256,15 @@ for ep in range(1, H["vanilla_episodes"] + 1):
         state = next_state
         total_steps += 1
 
-        if len(vanilla_replay) >= H["batch_size"] and total_steps > H["start_training_after"]:
+        if (
+            len(vanilla_replay) >= H["batch_size"]
+            and total_steps > H["start_training_after"]
+        ):
             if total_steps % H["train_freq"] == 0:
                 batch = vanilla_replay.sample(H["batch_size"])
-                loss = compute_td_loss_vanilla(batch, vanilla_net, vanilla_target, H["gamma"], device)
+                loss = compute_td_loss_vanilla(
+                    batch, vanilla_net, vanilla_target, H["gamma"], device
+                )
                 vanilla_opt.zero_grad()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(vanilla_net.parameters(), H["grad_clip"])
@@ -259,10 +282,14 @@ for ep in range(1, H["vanilla_episodes"] + 1):
     if ep % 10 == 0:
         avg_reward = np.mean(vanilla_episode_rewards[-H["log_interval"] :])
         elapsed = time.time() - start_time
-        print(f"[Vanilla] Ep {ep:4d} | Steps {total_steps:7d} | AvgR(last {H['log_interval']}): {avg_reward:.3f} | Eps: {epsilon:.3f} | Time: {elapsed:.1f}s")
+        print(
+            f"[Vanilla] Ep {ep:4d} | Steps {total_steps:7d} | AvgR(last {H['log_interval']}): {avg_reward:.3f} | Eps: {epsilon:.3f} | Time: {elapsed:.1f}s"
+        )
 
     if ep % 100 == 0:
-        torch.save(vanilla_net.state_dict(), f"checkpoints/checkpoint_vanilla_ep{ep}.pth")
+        torch.save(
+            vanilla_net.state_dict(), f"checkpoints/checkpoint_vanilla_ep{ep}.pth"
+        )
 
 torch.save(vanilla_net.state_dict(), H["vanilla_save"])
 print(f"Vanilla model saved to {H['vanilla_save']}")
