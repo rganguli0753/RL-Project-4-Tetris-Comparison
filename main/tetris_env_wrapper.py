@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 from TetrisBattle.envs.tetris_env import TetrisDoubleEnv
@@ -19,7 +20,9 @@ class TetrisBattleEnvWrapper:
         * Win / loss bonus at end of game
     """
 
-    def __init__(self, device: str = "cpu", gridchoice: str = "none", debug: bool = False):
+    def __init__(
+        self, device: str = "cpu", gridchoice: str = "none", debug: bool = False
+    ):
         """
         Parameters
         ----------
@@ -37,7 +40,7 @@ class TetrisBattleEnvWrapper:
         self.env = TetrisDoubleEnv(
             gridchoice=gridchoice,
             obs_type="image",
-            mode="rgb_array",   
+            mode="rgb_array",
         )
 
         self.action_space = self.env.action_space
@@ -47,8 +50,8 @@ class TetrisBattleEnvWrapper:
 
         self.prev_cleared = 0
         self.prev_sent = 0
-    # -----------------------------------------------------
 
+    # -----------------------------------------------------
 
     def _extract_state(self) -> torch.Tensor:
         """
@@ -66,15 +69,15 @@ class TetrisBattleEnvWrapper:
         tetris = gi.tetris_list[player_idx]["tetris"]
 
         #  board
-        board_raw = tetris.get_board()      
-        board = board_raw.T                 
+        board_raw = tetris.get_board()
+        board = board_raw.T
 
         # current piece id
         current_piece = -1
         if getattr(tetris, "block", None) is not None:
             block_type = tetris.block.block_type()
             if block_type in PIECE_TYPE2NUM:
-                current_piece = int(PIECE_TYPE2NUM[block_type]) - 1 
+                current_piece = int(PIECE_TYPE2NUM[block_type]) - 1
 
         # held piece id
         held_piece = -1
@@ -116,14 +119,18 @@ class TetrisBattleEnvWrapper:
         self.prev_sent = getattr(tetris, "sent", 0)
 
         if self.debug:
-            print(f"[RESET] player_idx={self.player_idx}, "
-                  f"cleared={self.prev_cleared}, sent={self.prev_sent}")
+            print(
+                f"[RESET] player_idx={self.player_idx}, "
+                f"cleared={self.prev_cleared}, sent={self.prev_sent}"
+            )
 
         return self._extract_state()
 
     # -----------------------------------------------------
 
-    def _compute_shaped_reward(self, env_reward: float, done: bool, info: dict) -> float:
+    def _compute_shaped_reward(
+        self, env_reward: float, done: bool, info: dict
+    ) -> float:
         """
         Compute shaped reward from Tetris stats for our player:
 
@@ -147,15 +154,20 @@ class TetrisBattleEnvWrapper:
         self.prev_cleared = total_cleared
         self.prev_sent = total_sent
 
+        highest_row = self.get_highest_block_height()
+        normalized_height = 1 - (highest_row / self.board_height)
+        HEIGHT_PENALTY = 0.5
+
         # Reward weights
-        ATTACK_W = 1.0      # reward for sending lines (attack)
-        CLEAR_W = 0.25      # reward for clearing lines
+        ATTACK_W = 1.0  # reward for sending lines (attack)
+        CLEAR_W = 0.25  # reward for clearing lines
         WIN_BONUS = 10.0
         LOSS_PENALTY = 10.0
 
         reward = 0.0
         reward += ATTACK_W * float(delta_sent)
         reward += CLEAR_W * float(delta_cleared)
+        reward -= HEIGHT_PENALTY * normalized_height
 
         # Terminal bonus/penalty if winner info is present
         if done and "winner" in info:
@@ -190,7 +202,7 @@ class TetrisBattleEnvWrapper:
         shaped_reward = self._compute_shaped_reward(env_reward, done, info)
         next_state = self._extract_state()
 
-        info = dict(info)  
+        info = dict(info)
         info["env_reward"] = env_reward
         info["shaped_reward"] = shaped_reward
 
@@ -205,3 +217,16 @@ class TetrisBattleEnvWrapper:
     def close(self):
         if hasattr(self.env, "close"):
             self.env.close()
+
+    def get_highest_block_height(self):
+        """
+        Returns the row index of the highest occupied cell in the board.
+        0 = top row, board_height-1 = bottom row.
+        If the board is empty, returns board_height (no blocks).
+        """
+        tetris = self.env.game_interface.tetris_list[self.player_idx]["tetris"]
+        board = tetris.get_board().T
+        occupied_rows = np.where(board.any(axis=1))[0]
+        if len(occupied_rows) == 0:
+            return self.board_height  # empty board
+        return occupied_rows[0]  # top-most block row
