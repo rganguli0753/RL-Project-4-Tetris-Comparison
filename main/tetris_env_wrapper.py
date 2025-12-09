@@ -3,6 +3,7 @@ import torch
 
 from TetrisBattle.envs.tetris_env import TetrisDoubleEnv
 from TetrisBattle.settings import GRID_WIDTH, GRID_DEPTH, PIECE_TYPE2NUM
+from TetrisBattle.tetris import hardDrop
 
 from Models.vanilla_dqn import encode_tetris_state
 
@@ -50,48 +51,76 @@ class TetrisBattleEnvWrapper:
 
         self.prev_cleared = 0
         self.prev_sent = 0
+        self.prev_piece_coords = None
+
+        self.prev_piece_id = None
+        self.prev_max_height = 0
 
     # -----------------------------------------------------
 
     def _extract_state(self) -> torch.Tensor:
         """
-        Reads the current player's Tetris object and builds
-        (board, current_piece_id, held_piece_id), then encodes to
-        a (15, H, W) tensor.
-
-        Returns
-        -------
-        state : torch.FloatTensor
-            Shape (15, board_height, board_width)
+        Reads the current player's Tetris object and builds:
+            - board
+            - current_piece_id
+            - held_piece_id
+            - ghost_piece
+            - current_piece absolute coords
+            - block height on board
+        Encodes all into a (17, H, W) tensor.
         """
         gi = self.env.game_interface
         player_idx = gi.now_player
         tetris = gi.tetris_list[player_idx]["tetris"]
 
-        #  board
+        # --- Board ---
         board_raw = tetris.get_board()
-        board = board_raw.T
+        board = board_raw.T  # transpose to (H, W)
 
-        # current piece id
+        # --- Current piece ---
         current_piece = -1
+        current_piece_coords = None
+        block_height_on_board = 0
+
         if getattr(tetris, "block", None) is not None:
+            # Current piece type
             block_type = tetris.block.block_type()
             if block_type in PIECE_TYPE2NUM:
                 current_piece = int(PIECE_TYPE2NUM[block_type]) - 1
 
-        # held piece id
+            # Absolute positions of the block on the board
+            px, py = tetris.px, tetris.py
+            current_piece_coords = tetris.block.return_pos(px, py)
+
+            if current_piece_coords:
+                ys = [y for _, y in current_piece_coords]
+                min_y = min(ys)
+                max_y = max(ys)
+                block_height_on_board = max_y - min_y + 1
+
+        # --- Held piece ---
         held_piece = -1
         if getattr(tetris, "held", None) is not None:
             held_type = tetris.held.block_type()
             if held_type in PIECE_TYPE2NUM:
                 held_piece = int(PIECE_TYPE2NUM[held_type]) - 1
 
+        # --- Ghost piece ---
+        ghost_piece = None
+        if current_piece_coords is not None:
+            ghost_y_offset = hardDrop(tetris.grid, tetris.block, tetris.px, tetris.py)
+            ghost_piece = {"px": tetris.px, "py": tetris.py + ghost_y_offset}
+
+        # --- Encode state ---
         state = encode_tetris_state(
             board,
             current_piece,
             held_piece,
+            ghost_piece=ghost_piece,
+            current_piece_coords=current_piece_coords,
             board_height=self.board_height,
             board_width=self.board_width,
+            block_height_on_board=block_height_on_board,
         )
 
         if not isinstance(state, torch.Tensor):
@@ -146,7 +175,7 @@ class TetrisBattleEnvWrapper:
         total_cleared = getattr(tetris, "cleared", 0)
         total_sent = getattr(tetris, "sent", 0)
 
-        # Deltas for *this step*
+        # Deltas for this step
         delta_cleared = total_cleared - self.prev_cleared
         delta_sent = total_sent - self.prev_sent
 
@@ -154,28 +183,53 @@ class TetrisBattleEnvWrapper:
         self.prev_cleared = total_cleared
         self.prev_sent = total_sent
 
+        current_piece_id = -1
+        current_piece_coords = None
+        if getattr(tetris, "block", None) is not None:
+            block_type = tetris.block.block_type()
+            if block_type in PIECE_TYPE2NUM:
+                current_piece_id = int(PIECE_TYPE2NUM[block_type]) - 1
+            current_piece_coords = tetris.block.return_pos(tetris.px, tetris.py)
+
+        piece_landed = (self.prev_piece_id is not None) and (
+            current_piece_id != self.prev_piece_id
+        )
+        self.prev_piece_id = current_piece_id  # update for next step
+
+        normalized_height = 0.0
+        if piece_landed and self.prev_piece_coords:
+            ys = [y for _, y in self.prev_piece_coords]
+            bottom_y = max(ys)
+            print("bottom_y: " + str(bottom_y))
+            height = (self.board_height - 1) - bottom_y
+            print("height: " + str(height))
+            normalized_height = height / (self.board_height - 1)
+            print("normalized_height: " + str(normalized_height))
+
+        self.prev_piece_coords = current_piece_coords
+
         """highest_row = self.get_highest_block_height()
         normalized_height = 1 - (highest_row / self.board_height)"""
-        HEIGHT_REWARD = 0.005
 
         # Reward weights
-        ATTACK_W = 1.0  # reward for sending lines (attack)
-        CLEAR_W = 0.25  # reward for clearing lines
-        WIN_BONUS = 10.0
-        LOSS_PENALTY = 10.0
+        ATTACK_W = 10  # reward for sending lines (attack)
+        CLEAR_W = 10  # reward for clearing lines
+        LANDING_HEIGHT_PENALTY = 1
+        STEP_PENALTY = 0.025
+
+        GAME_END = 25.0
 
         reward = 0.0
-        reward += ATTACK_W * float(delta_sent)
-        reward += CLEAR_W * float(delta_cleared)
-        reward += HEIGHT_REWARD * (1 - self.get_average_height())
+        reward += ATTACK_W * delta_sent
+        reward += CLEAR_W * delta_cleared
+        reward -= LANDING_HEIGHT_PENALTY * normalized_height
+        reward -= STEP_PENALTY  # small step penalty
 
-        # Terminal bonus/penalty if winner info is present
         if done and "winner" in info:
-            winner = info["winner"]
-            if winner == self.player_idx:
-                reward += WIN_BONUS
+            if info["winner"] == self.player_idx:
+                reward += GAME_END
             else:
-                reward -= LOSS_PENALTY
+                reward -= GAME_END
 
         if self.debug:
             print(

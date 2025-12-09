@@ -6,39 +6,70 @@ import torch.nn.functional as F
 # ============================================================
 #   STATE ENCODING
 # ============================================================
-def encode_tetris_state(board,
-                        current_piece,
-                        held_piece,
-                        board_height=20,
-                        board_width=10):
+def encode_tetris_state(
+    board: torch.Tensor,
+    current_piece: int,
+    held_piece: int,
+    ghost_piece=None,
+    current_piece_coords=None,
+    board_height=20,
+    board_width=10,
+    block_height_on_board=0,
+) -> torch.Tensor:
     """
-    Converts Tetris environment state into PyTorch input tensor.
-
-    board: (H, W) 0/1 occupancy
-    current_piece: int from 0..6 or -1 if no active piece
-    held_piece: int from 0..6 or -1 if none
-    Returns: tensor (15, H, W):
-        1 channel for board
-        7 channels for current piece type (one-hot planes)
-        7 channels for held piece type
+    Encodes the Tetris state into a tensor with shape (17, H, W):
+      - 0-6: one-hot for current piece type
+      - 7-13: one-hot for held piece type
+      - 14: board occupancy
+      - 15: current piece occupancy
+      - 16: ghost piece occupancy
+      Optionally include block height for additional channel or feature.
     """
-    if not isinstance(board, torch.Tensor):
-        board = torch.tensor(board, dtype=torch.float32)
+    device = board.device if isinstance(board, torch.Tensor) else torch.device("cpu")
 
-    board = board.reshape(board_height, board_width).float()
-    board_ch = board.unsqueeze(0)  # (1, H, W)
+    H, W = board_height, board_width
 
-    def piece_to_planes(piece_id):
-        planes = torch.zeros((7, board_height, board_width), dtype=torch.float32)
-        if 0 <= piece_id < 7:
-            planes[piece_id, :, :] = 1.0
-        return planes
+    # --- Initialize tensor ---
+    state_tensor = torch.zeros((17, H, W), dtype=torch.float32, device=device)
 
-    cur_planes = piece_to_planes(current_piece)
-    held_planes = piece_to_planes(held_piece)
+    # --- Board occupancy ---
+    state_tensor[14, : board.shape[0], : board.shape[1]] = torch.tensor(
+        board, dtype=torch.float32, device=device
+    )
 
-    # Final is (15, H, W)
-    return torch.cat([board_ch, cur_planes, held_planes], dim=0)
+    # --- Current piece one-hot channel ---
+    if current_piece >= 0 and current_piece < 7:
+        state_tensor[current_piece, :, :] = 1.0
+
+    # --- Held piece one-hot channel ---
+    if held_piece >= 0 and held_piece < 7:
+        state_tensor[7 + held_piece, :, :] = 1.0
+
+    # --- Current piece occupancy ---
+    if current_piece_coords:
+        for x, y in current_piece_coords:
+            if 0 <= y < H and 0 <= x < W:
+                state_tensor[15, y, x] = 1.0
+
+    # --- Ghost piece occupancy ---
+    if ghost_piece:
+        gx, gy = ghost_piece["px"], ghost_piece["py"]
+        for x, y in current_piece_coords:
+            abs_x, abs_y = x + (gx - current_piece_coords[0][0]), y + (
+                gy - current_piece_coords[0][1]
+            )
+            if 0 <= abs_y < H and 0 <= abs_x < W:
+                state_tensor[16, abs_y, abs_x] = 1.0
+
+    # --- Optional: add block height as a separate feature map ---
+    # Normalize height by board height
+    height_map = torch.full(
+        (H, W), block_height_on_board / H, dtype=torch.float32, device=device
+    )
+    # This can be added as an extra channel if you want
+    # state_tensor = torch.cat([state_tensor, height_map.unsqueeze(0)], dim=0)
+
+    return state_tensor
 
 
 # ============================================================
@@ -50,6 +81,7 @@ class VanillaDQN(nn.Module):
     Input:  (B, 15, 20, 10)
     Output: (B, num_actions)
     """
+
     def __init__(self, num_actions, in_channels=15):
         super().__init__()
 
@@ -57,24 +89,20 @@ class VanillaDQN(nn.Module):
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels, 64, kernel_size=3, padding=1),
             nn.ReLU(),
-
             nn.Conv2d(64, 128, kernel_size=3, padding=1),
             nn.ReLU(),
-
             nn.Conv2d(128, 128, kernel_size=3, padding=1),
             nn.ReLU(),
         )
 
         # Fully connected Q-value head
         self.fc = nn.Sequential(
-            nn.Linear(128 * 20 * 10, 512),
-            nn.ReLU(),
-            nn.Linear(512, num_actions)
+            nn.Linear(128 * 20 * 10, 512), nn.ReLU(), nn.Linear(512, num_actions)
         )
 
     def forward(self, x):
         batch = x.size(0)
-        out = self.conv(x)              # (B, 128, 20, 10)
-        out = out.view(batch, -1)       # flatten
-        q_values = self.fc(out)         # (B, num_actions)
+        out = self.conv(x)  # (B, 128, 20, 10)
+        out = out.view(batch, -1)  # flatten
+        q_values = self.fc(out)  # (B, num_actions)
         return q_values

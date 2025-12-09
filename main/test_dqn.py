@@ -14,6 +14,7 @@ Computes the following metrics for each model:
 import json
 import argparse
 import os
+import random
 import time
 
 import numpy as np
@@ -41,7 +42,7 @@ MODEL_REGISTRY = {
         "class": DuelingTetrisDQN,
         "kwargs": lambda na, ad, device: {
             "num_actions": na,
-            "in_channels": 15,
+            "in_channels": 17,
             "device": device,
         },
         "path": "../completed_models/dueling_trained.pth",
@@ -143,14 +144,16 @@ def evaluate_model(model, env, num_episodes=50, device="cuda", model_name="Unkno
                     else:
                         action = action_continuous
 
+            # action = int(random.randrange(8))
             next_state, reward, done, _ = env.step(action)
 
-            if step % 50 == 0 or action != 0:
+            if step % 10 == 0 or action != 0:
                 frame = env.render()
                 cv2.imshow("Agent", cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
                 cv2.waitKey(1)
 
             ep_reward += float(reward)
+            # print("Cumulative Episode Reward: " + str(ep_reward))
             ep_length += 1
             state = next_state
 
@@ -158,6 +161,7 @@ def evaluate_model(model, env, num_episodes=50, device="cuda", model_name="Unkno
                 break
 
         rewards.append(ep_reward)
+        print("Episode reward: " + str(ep_reward))
         episode_lengths.append(ep_length)
 
         print(f"  Completed {episode + 1}/{num_episodes} episodes")
@@ -282,7 +286,6 @@ def main():
             model_class,
             args.model,
             env,
-            device=device,
             **kwargs(num_actions, action_dim, device=device),
         )
 

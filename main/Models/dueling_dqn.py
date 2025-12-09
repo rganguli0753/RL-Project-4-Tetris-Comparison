@@ -46,7 +46,7 @@ class DuelingTetrisDQN(nn.Module):
         Q = V + (A - mean(A))
     """
 
-    def __init__(self, num_actions, in_channels=15):
+    def __init__(self, num_actions, in_channels=17):
         super().__init__()
 
         # Shared convolutional encoder
