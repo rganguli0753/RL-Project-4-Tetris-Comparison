@@ -42,7 +42,7 @@ MODEL_REGISTRY = {
     },
     "continuous_actor": {
         "class": TetrisContinuousActor,
-        "kwargs": lambda na, ad, device=None: {"action_dim": 1, "in_channels": 15},
+        "kwargs": lambda n: {"action_dim": 1, "in_channels": 15},
         "path": "../completed_models/continuous_actor.pth",
     },
 }
