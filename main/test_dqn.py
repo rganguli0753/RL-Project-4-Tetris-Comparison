@@ -19,6 +19,7 @@ import time
 import numpy as np
 import torch
 import torch.nn.functional as F
+import cv2
 
 # -------------------------
 # Imports: models and env wrapper (no prioritized model)
@@ -104,10 +105,13 @@ def evaluate_model(model, env, num_episodes=50, device="cuda", model_name="Unkno
     model.eval()
 
     print(f"\n[{model_name}] Evaluating on {num_episodes} episodes...")
+    cv2.namedWindow("Agent", cv2.WINDOW_NORMAL)
     for episode in range(num_episodes):
         state = env.reset()
         ep_reward, ep_length = 0.0, 0.0
+
         for step in range(5000):  # Max steps per episode
+
             with torch.no_grad():
                 x = (
                     state.unsqueeze(0).to(device)
@@ -140,7 +144,12 @@ def evaluate_model(model, env, num_episodes=50, device="cuda", model_name="Unkno
                         action = action_continuous
 
             next_state, reward, done, _ = env.step(action)
-            print("Reward: " + str(reward))
+
+            if step % 50 == 0 or action != 0:
+                frame = env.render()
+                cv2.imshow("Agent", cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                cv2.waitKey(1)
+
             ep_reward += float(reward)
             ep_length += 1
             state = next_state
@@ -205,7 +214,12 @@ def evaluate_all_models(num_eval_episodes=50, results_file="evaluation_results.j
         num_actions = int(env.action_space)
     action_dim = num_actions
 
-    all_results = {"timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), "models": {}}
+    # Load existing results if file exists
+    if os.path.exists(results_file):
+        with open(results_file, "r") as f:
+            all_results = json.load(f)
+    else:
+        all_results = {"timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), "models": {}}
 
     for key, entry in MODEL_REGISTRY.items():
         path = entry["path"]
@@ -221,10 +235,11 @@ def evaluate_all_models(num_eval_episodes=50, results_file="evaluation_results.j
             device=device,
             **entry["kwargs"](num_actions, action_dim, device=device),
         )
-        all_results["models"][key] = metrics
+        all_results["models"][path] = metrics
+        all_results["models"][path]["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S")
         print(f"Avg reward: {metrics['avg_reward']:.2f} ± {metrics['std_reward']:.2f}")
 
-    # Save results
+    # Save updated results
     with open(results_file, "w") as f:
         json.dump(all_results, f, indent=2)
     print(f"\nAll results saved to {results_file}")
@@ -271,18 +286,28 @@ def main():
             **kwargs(num_actions, action_dim, device=device),
         )
 
-        # Save results
-        with open(args.output, "w") as f:
-            json.dump(
-                {
-                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "model": args.model,
-                    "metrics": metrics,
-                },
-                f,
-                indent=2,
-            )
-        print(f"\nResults saved to {args.output}")
+        # Load existing results if file exists
+        results_file = "evaluation_results.json"
+        if os.path.exists(results_file):
+            with open(results_file, "r") as f:
+                all_results = json.load(f)
+            if "models" not in all_results:
+                all_results["models"] = {}
+        else:
+            all_results = {
+                "models": {},
+            }
+
+        # Add/update metrics for the single model
+        all_results["models"][args.model] = metrics
+        all_results["models"][args.model]["timestamp"] = time.strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+
+        # Save back
+        with open(results_file, "w") as f:
+            json.dump(all_results, f, indent=2)
+        print(f"\nResults saved to evaluation_results.json")
     else:
         evaluate_all_models()
 
