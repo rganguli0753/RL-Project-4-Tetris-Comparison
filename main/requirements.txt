@@ -7,3 +7,6 @@ gym
 pygame
 moviepy 
 imageio-ffmpeg
+opencv-python
+opencv-python-headless
+opencv-contrib-python
