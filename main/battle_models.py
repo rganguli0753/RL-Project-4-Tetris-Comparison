@@ -75,7 +75,7 @@ def play_match(
     env = TetrisBattleEnvWrapper(device=device, debug=False)
     models = {0: model1, 1: model2}
 
-    num_episodes = 10
+    num_episodes = 5
     stats = {
         model1_name: {
             "lines_cleared": 0,
