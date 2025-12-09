@@ -1,0 +1,19 @@
+{
+  "models": {
+    "../completed_models/vanilla_trained.pth": {
+      "avg_reward": 23.70553999999965,
+      "std_reward": 0.4965111315966086,
+      "min_reward": 22.572700000000275,
+      "max_reward": 24.407699999997853,
+      "avg_episode_length": 5000.0,
+      "std_episode_length": 0.0,
+      "min_episode_length": 5000,
+      "max_episode_length": 5000,
+      "parameters": 13341960,
+      "model_size_mb": 50.895538330078125,
+      "inference_time_ms": 1.684267520904541,
+      "model_name": "vanilla",
+      "timestamp": "2025-12-09 13:04:54"
+    }
+  }
+}

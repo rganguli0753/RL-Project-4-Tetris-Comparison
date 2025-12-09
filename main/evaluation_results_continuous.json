@@ -1,0 +1,19 @@
+{
+  "models": {
+    "../completed_models/continuous_actor.pth": {
+      "avg_reward": 24.19354599999951,
+      "std_reward": 0.07780606424923377,
+      "min_reward": 24.0595000000009,
+      "max_reward": 24.347649999999273,
+      "avg_episode_length": 5000.0,
+      "std_episode_length": 0.0,
+      "min_episode_length": 5000,
+      "max_episode_length": 5000,
+      "parameters": 13338882,
+      "model_size_mb": 50.88379669189453,
+      "inference_time_ms": 1.9012832641601562,
+      "model_name": "continuous_actor",
+      "timestamp": "2025-12-09 15:56:22"
+    }
+  }
+}

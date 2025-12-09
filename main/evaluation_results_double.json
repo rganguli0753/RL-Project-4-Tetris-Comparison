@@ -1,0 +1,19 @@
+{
+  "models": {
+    "../completed_models/double_trained.pth": {
+      "avg_reward": 21.92363350000015,
+      "std_reward": 3.574010796292618,
+      "min_reward": 9.424825000000464,
+      "max_reward": 23.821475000000348,
+      "avg_episode_length": 4960.24,
+      "std_episode_length": 137.04562160098365,
+      "min_episode_length": 4364,
+      "max_episode_length": 5000,
+      "parameters": 13341960,
+      "model_size_mb": 50.895538330078125,
+      "inference_time_ms": 1.6854572296142578,
+      "model_name": "double",
+      "timestamp": "2025-12-09 14:04:36"
+    }
+  }
+}

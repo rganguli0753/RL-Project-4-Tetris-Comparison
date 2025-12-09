@@ -42,7 +42,6 @@ MODEL_REGISTRY = {
         "kwargs": lambda na, ad, device: {
             "num_actions": na,
             "in_channels": 15,
-            "device": device,
         },
         "path": "../completed_models/dueling_trained.pth",
     },
@@ -58,7 +57,7 @@ MODEL_REGISTRY = {
     },
     "continuous_actor": {
         "class": TetrisContinuousActor,
-        "kwargs": lambda na, ad, device=None: {"action_dim": ad, "in_channels": 15},
+        "kwargs": lambda na, ad, device=None: {"action_dim": 1, "in_channels": 15},
         "path": "../completed_models/continuous_actor.pth",
     },
 }

@@ -1,0 +1,19 @@
+{
+  "models": {
+    "../completed_models/dueling_trained.pth": {
+      "avg_reward": 24.092884999999622,
+      "std_reward": 0.2838470593907863,
+      "min_reward": 22.92867500000074,
+      "max_reward": 24.415699999997834,
+      "avg_episode_length": 5000.0,
+      "std_episode_length": 0.0,
+      "min_episode_length": 5000,
+      "max_episode_length": 5000,
+      "parameters": 13340169,
+      "model_size_mb": 50.88870620727539,
+      "inference_time_ms": 3.847842216491699,
+      "model_name": "dueling",
+      "timestamp": "2025-12-09 15:07:25"
+    }
+  }
+}
