@@ -40,6 +40,11 @@ MODEL_REGISTRY = {
         "path": "../completed_models/mctp_trained.pth",
         "kwargs": lambda n: {"num_actions": n, "in_channels": 15},
     },
+    "continuous_actor": {
+        "class": TetrisContinuousActor,
+        "kwargs": lambda na, ad, device=None: {"action_dim": 1, "in_channels": 15},
+        "path": "../completed_models/continuous_actor.pth",
+    },
 }
 
 
